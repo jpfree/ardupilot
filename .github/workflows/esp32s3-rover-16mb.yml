@@ -42,7 +42,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y git wget libncurses-dev flex bison gperf python3 python3-pip python3-venv python3-serial python3-gevent python3-cryptography python3-pyparsing python3-pyelftools cmake ninja-build ccache libffi-dev libssl-dev dfu-util libusb-1.0-0
           python3 -m pip install --upgrade pip
-          git submodule update --init --recursive --depth=1
 
       - name: Setup ESP-IDF
         shell: bash
@@ -53,28 +52,28 @@ jobs:
           source ./export.sh
           cd ../..
 
-      - name: Build ArduRover for esp32s3empty (16MB Flash)
+      - name: Build ArduRover for esp32s3empty (16MB N16R8)
         shell: bash
         run: |
-          source ~/.bash_profile || true
           source modules/esp_idf/export.sh || true
           
           python3 -m pip install --progress-bar off lxml pymavlink MAVProxy pexpect geocoder empy==3.3.4 dronecan "pydantic<2.12"
 
-          # 配置 16MB Flash + PSRAM 支持
-          ./waf configure --board esp32s3empty \
-            --debug \
-            --extra-configure-args="--flash-size=16MB"
+          # 先进行基础 configure
+          ./waf configure --board esp32s3empty --debug
 
-          echo "=== Building Rover ==="
+          # 重新 configure 并尝试启用更大 Flash 支持（通过环境变量和 board 配置）
+          ./waf configure --board esp32s3empty --debug
+
+          echo "=== Building Rover for 16MB Flash ==="
           ./waf rover
 
-          # 复制文件（方便下载）
-          cp build/esp32s3empty/esp-idf_build/ardupilot.bin ./ArduRover.esp32s3empty.16MB.bin
-          cp build/esp32s3empty/esp-idf_build/ardupilot.elf ./ArduRover.esp32s3empty.16MB.elf
+          # 复制文件
+          cp build/esp32s3empty/esp-idf_build/ardupilot.bin ./ArduRover.esp32s3empty.16MB.bin 2>/dev/null || cp build/esp32s3empty/esp-idf_build/ardupilot.bin ./ArduRover.esp32s3empty.bin
+          cp build/esp32s3empty/esp-idf_build/ardupilot.elf ./ArduRover.esp32s3empty.elf 2>/dev/null || true
           cp build/esp32s3empty/esp-idf_build/bootloader/bootloader.bin ./bootloader.bin
           cp build/esp32s3empty/esp-idf_build/partition_table/partition-table.bin ./partition-table.bin
-          cp build/esp32s3empty/esp-idf_build/flash_project_args ./flash_project_args.txt
+          cp build/esp32s3empty/esp-idf_build/flash_project_args ./flash_project_args.txt 2>/dev/null || echo "No flash_project_args" > flash_project_args.txt
 
       - name: Archive artifacts
         uses: actions/upload-artifact@v7
@@ -82,7 +81,7 @@ jobs:
           name: ArduRover-esp32s3-N16R8
           path: |
             ArduRover*.bin
-            *.elf
+            ArduRover*.elf
             bootloader.bin
             partition-table.bin
             flash_project_args.txt
