@@ -1,0 +1,139 @@
+name: ESP32 Rover Build (esp32s3empty)
+
+on:
+  push:
+    paths-ignore:
+      # 保留 Rover，其他车辆忽略
+      - 'AntennaTracker/**'
+      - 'ArduSub/**'
+      - 'Blimp/**'
+      - 'ArduPlane/**'   # 可选：如果你只想专注 Rover
+      - 'ArduCopter/**'
+      # 保留 ESP32 HAL
+      - 'libraries/AP_HAL_ChibiOS/**'
+      - 'libraries/AP_HAL_SITL/**'
+      # 其他非必要目录（保持精简）
+      - 'Tools/AP_Bootloader/**'
+      - 'Tools/AP_Periph/**'
+      - 'Tools/bootloaders/**'
+      - 'Tools/CHDK-Script/**'
+      - 'Tools/CodeStyle/**'
+      - 'Tools/completion/**'
+      - 'Tools/CPUInfo/**'
+      - 'Tools/debug/**'
+      - 'Tools/environment_install/**'
+      - 'Tools/FilterTestTool/**'
+      - 'Tools/Frame_params/**'
+      - 'Tools/geotag/**'
+      - 'Tools/GIT_Test/**'
+      - 'Tools/gittools/**'
+      - 'Tools/Hello/**'
+      - 'Tools/IO_Firmware/**'
+      - 'Tools/Linux_HAL_Essentials/**'
+      - 'Tools/mavproxy_modules/**'
+      - 'Tools/Pozyx/**'
+      - 'Tools/PrintVersion.py'
+      - 'Tools/Replay/**'
+      - 'Tools/simulink/**'
+      - 'Tools/UDP_Proxy/**'
+      - 'Tools/vagrant/**'
+      - 'Tools/Vicon/**'
+      - 'Tools/scripts/**.py'
+      - 'Tools/scripts/build_sizes/**'
+      - 'Tools/scripts/build_tests/**'
+      - 'Tools/scripts/CAN/**'
+      - 'Tools/scripts/signing/**'
+      - 'Tools/autotest/**'
+      - '**.md'
+      - '.github/**'
+      - '.vscode/**'
+
+  pull_request:
+    paths-ignore:
+      # 同上
+      - 'AntennaTracker/**'
+      - 'ArduSub/**'
+      - 'Blimp/**'
+      - 'ArduPlane/**'
+      - 'ArduCopter/**'
+      - 'libraries/AP_HAL_ChibiOS/**'
+      - 'libraries/AP_HAL_SITL/**'
+      - 'Tools/**'          # 可根据需要进一步精简
+      - '**.md'
+      - '.github/**'
+
+  workflow_dispatch:   # 手动触发
+
+concurrency:
+  group: ci-esp32-rover-${{github.ref}}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        config: [esp32s3empty]   # 只保留你的板子
+        gcc: [10]
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: 'recursive'
+
+      - name: Register problem matchers
+        run: |
+          echo "::add-matcher::.github/problem-matchers/gcc.json"
+          echo "::add-matcher::.github/problem-matchers/python.json"
+
+      - name: Install Prerequisites
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install git wget libncurses-dev flex bison gperf python3 python3-pip python3-venv python3-setuptools python3-serial python3-gevent python3-cryptography python3-pyparsing python3-pyelftools cmake ninja-build ccache libffi-dev libssl-dev dfu-util libusb-1.0-0
+          python3 -m pip install gevent
+          git submodule update --init --recursive --depth=1
+          ./Tools/scripts/esp32_get_idf.sh
+          sudo ln -s /usr/bin/ninja /usr/bin/ninja-build
+
+      - name: Build ArduRover for ${{matrix.config}}
+        env:
+          CI_BUILD_TARGET: ${{matrix.config}}
+        shell: bash
+        run: |
+          source ~/.bash_profile
+          PATH="/github/home/.local/bin:$PATH"
+          
+          echo "Installing ESP-IDF tools...."
+          cd modules/esp_idf
+          ./install.sh esp32,esp32s3
+          source ./export.sh
+          cd ../..
+          
+          python3 -m pip install --progress-bar off lxml pymavlink MAVProxy pexpect flake8 geocoder empy==3.3.4 dronecan "pydantic<2.12"
+          
+          ./waf configure --board ${{matrix.config}}
+          
+          echo "### Build Rover ${{matrix.config}} :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo './waf rover' >> $GITHUB_STEP_SUMMARY
+          ./waf rover | tee >( grep -vE 'Compiling|Generat|includes.list|Parsing|Validation|Building|Linking|Detecting|linker|\*\*\*\*\*\*\*|Partition|SubType|Checking|esp-idf' --color=never --line-buffered > summary.log)
+          
+          cat summary.log >> $GITHUB_STEP_SUMMARY
+          
+          # 复制产物
+          cp build/${{matrix.config}}/esp-idf_build/ardupilot.bin ./ArduRover.${{matrix.config}}.bin
+          cp build/${{matrix.config}}/esp-idf_build/ardupilot.elf ./ArduRover.${{matrix.config}}.elf
+          cp build/${{matrix.config}}/esp-idf_build/bootloader/bootloader.bin ./bootloader.${{matrix.config}}.bin
+          cp build/${{matrix.config}}/esp-idf_build/partition_table/partition-table.bin ./partition-table.${{matrix.config}}.bin
+
+      - name: Archive artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: esp32-rover-binaries-${{matrix.config}}
+          path: |
+            ArduRover.${{matrix.config}}.bin
+            ArduRover.${{matrix.config}}.elf
+            bootloader.${{matrix.config}}.bin
+            partition-table.${{matrix.config}}.bin
+          retention-days: 14
