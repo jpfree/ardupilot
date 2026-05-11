@@ -1,31 +1,7 @@
-name: ESP32-S3 N16R8 Rover Build
+name: ESP32-S3 N16R8 Rover Build - Custom Partition
 
 on:
-  push:
-    paths-ignore:
-      - 'AntennaTracker/**'
-      - 'ArduSub/**'
-      - 'Blimp/**'
-      - 'ArduPlane/**'
-      - 'ArduCopter/**'
-      - 'libraries/AP_HAL_ChibiOS/**'
-      - 'libraries/AP_HAL_SITL/**'
-      - '**.md'
-      - '.github/**'
-
-  pull_request:
-    paths-ignore:
-      - 'AntennaTracker/**'
-      - 'ArduSub/**'
-      - 'Blimp/**'
-      - 'ArduPlane/**'
-      - 'ArduCopter/**'
-      - 'libraries/AP_HAL_ChibiOS/**'
-      - 'libraries/AP_HAL_SITL/**'
-      - '**.md'
-      - '.github/**'
-
-  workflow_dispatch:
+  workflow_dispatch:     # 只保留手动触发
 
 jobs:
   build:
@@ -52,25 +28,32 @@ jobs:
           source ./export.sh
           cd ../..
 
-      - name: Build ArduRover for esp32s3empty (16MB N16R8)
+      - name: Create Custom Partition Table (16MB + 1MB Storage)
+        shell: bash
+        run: |
+          mkdir -p libraries/AP_HAL_ESP32/boards/esp32s3empty
+          cat > libraries/AP_HAL_ESP32/boards/esp32s3empty/partitions.csv << EOF
+          # Name,   Type, SubType, Offset,   Size,   Flags
+          nvs,      data, nvs,     0x9000,   0x6000,
+          otadata,  data, ota,     0xf000,   0x2000,
+          app0,     app,  factory, 0x10000,  0x500000,
+          storage,  data, 0x99,    ,         0x100000,   # 1MB 参数存储区
+          EOF
+
+      - name: Build ArduRover
         shell: bash
         run: |
           source modules/esp_idf/export.sh || true
           
           python3 -m pip install --progress-bar off lxml pymavlink MAVProxy pexpect geocoder empy==3.3.4 dronecan "pydantic<2.12"
 
-          # 先进行基础 configure
           ./waf configure --board esp32s3empty --debug
 
-          # 重新 configure 并尝试启用更大 Flash 支持（通过环境变量和 board 配置）
-          ./waf configure --board esp32s3empty --debug
-
-          echo "=== Building Rover for 16MB Flash ==="
           ./waf rover
 
-          # 复制文件
-          cp build/esp32s3empty/esp-idf_build/ardupilot.bin ./ArduRover.esp32s3empty.16MB.bin 2>/dev/null || cp build/esp32s3empty/esp-idf_build/ardupilot.bin ./ArduRover.esp32s3empty.bin
-          cp build/esp32s3empty/esp-idf_build/ardupilot.elf ./ArduRover.esp32s3empty.elf 2>/dev/null || true
+          # 复制文件方便下载
+          cp build/esp32s3empty/esp-idf_build/ardupilot.bin ./ArduRover.esp32s3empty.16MB.bin
+          cp build/esp32s3empty/esp-idf_build/ardupilot.elf ./ArduRover.esp32s3empty.elf
           cp build/esp32s3empty/esp-idf_build/bootloader/bootloader.bin ./bootloader.bin
           cp build/esp32s3empty/esp-idf_build/partition_table/partition-table.bin ./partition-table.bin
           cp build/esp32s3empty/esp-idf_build/flash_project_args ./flash_project_args.txt 2>/dev/null || echo "No flash_project_args" > flash_project_args.txt
@@ -78,11 +61,9 @@ jobs:
       - name: Archive artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: ArduRover-esp32s3-N16R8
+          name: ArduRover-esp32s3-N16R8-Custom
           path: |
-            ArduRover*.bin
-            ArduRover*.elf
-            bootloader.bin
-            partition-table.bin
+            *.bin
+            *.elf
             flash_project_args.txt
           retention-days: 30
