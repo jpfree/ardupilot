@@ -52,11 +52,11 @@ jobs:
           ./waf rover
 
           # 复制文件方便下载
-          cp build/esp32s3empty/esp-idf_build/ardupilot.bin ./ArduRover.esp32s3empty.16MB.bin
-          cp build/esp32s3empty/esp-idf_build/ardupilot.elf ./ArduRover.esp32s3empty.elf
-          cp build/esp32s3empty/esp-idf_build/bootloader/bootloader.bin ./bootloader.bin
-          cp build/esp32s3empty/esp-idf_build/partition_table/partition-table.bin ./partition-table.bin
-          cp build/esp32s3empty/esp-idf_build/flash_project_args ./flash_project_args.txt 2>/dev/null || echo "No flash_project_args" > flash_project_args.txt
+          cp build/esp32s3devkit/esp-idf_build/ardupilot.bin ./ArduRover.esp32s3devkit.16MB.bin
+          cp build/esp32s3devkit/esp-idf_build/ardupilot.elf ./ArduRover.esp32s3devkit.elf
+          cp build/esp32s3devkit/esp-idf_build/bootloader/bootloader.bin ./bootloader.bin
+          cp build/esp32s3devkit/esp-idf_build/partition_table/partition-table.bin ./partition-table.bin
+          cp build/esp32s3devkit/esp-idf_build/flash_project_args ./flash_project_args.txt 2>/dev/null || echo "No flash_project_args" > flash_project_args.txt
 
       - name: Archive artifacts
         uses: actions/upload-artifact@v7
