@@ -136,4 +136,8 @@ jobs:
             ArduRover.${{matrix.config}}.elf
             bootloader.${{matrix.config}}.bin
             partition-table.${{matrix.config}}.bin
+            build/${{matrix.config}}/esp-idf_build/flash_project_args
+            build/${{matrix.config}}/esp-idf_build/project_description.json
+            build/${{matrix.config}}/esp-idf_build/sdkconfig
+            build/${{matrix.config}}/esp-idf_build/partition_table/partition-table.bin
           retention-days: 14
