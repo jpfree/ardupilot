@@ -74,7 +74,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        config: [esp32s3empty]   # 只保留你的板子
+        config: [esp32s3devkit]   # 只保留你的板子
         gcc: [10]
 
     steps:
