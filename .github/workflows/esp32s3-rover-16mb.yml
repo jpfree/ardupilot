@@ -47,7 +47,7 @@ jobs:
           
           python3 -m pip install --progress-bar off lxml pymavlink MAVProxy pexpect geocoder empy==3.3.4 dronecan "pydantic<2.12"
 
-          ./waf configure --board esp32s3empty --debug
+          ./waf configure --board esp32s3devkit --debug
 
           ./waf rover
 
